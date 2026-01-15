@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Тетрис для Telegram</title>
+    <style>
+        /* Стили для красивого вида игры */
+        body {
+            background-color: #111; /* Темный фон */
+            color: #eee; /* Светлый текст */
+            font-family: 'Courier New', Courier, monospace; /* Моноширинный шрифт */
+            display: flex;
+            flex-direction: column; /* Элементы друг под другом */
+            align-items: center; /* По центру горизонтали */
+            justify-content: center; /* По центру вертикали */
+            height: 100vh; /* На всю высоту экрана */
+            margin: 0; /* Убираем отступы */
+        }
+        canvas {
+            background-color: #222; /* Фон игрового поля */
+            border: 2px solid #eee; /* Рамка */
+        }
+        #score {
+            font-size: 24px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Тетрис</h1>
+    <canvas id="gameCanvas" width="300" height="600"></canvas>
+    <div id="score">Счет: 0</div>
+
+    <script>
+        // --- НАСТРОЙКИ ИГРЫ ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+
+        const COLS = 10; // Количество колонок в поле
+        const ROWS = 20; // Количество рядов в поле
+        const BLOCK_SIZE = 30; // Размер одного блока в пикселях
+
+        // --- ПЕРЕМЕННЫЕ СОСТОЯНИЯ ИГРЫ ---
+        let board = Array.from({ length: ROWS }, () => Array(COLS).fill(0)); // Игровое поле (0 - пусто)
+        let score = 0; // Текущий счет
+        let gameOver = false; // Флаг окончания игры
+
+        // --- ФИГУРЫ ТЕТРИСА ---
+        const PIECES = [
+            [[1, 1, 1, 1]], // I
+            [[1, 1], [1, 1]], // O
+            [[0, 1, 0], [1, 1, 1]], // T
+            [[1, 1, 0], [0, 1, 1]], // S
+            [[0, 1, 1], [1, 1, 0]], // Z
+            [[1, 0, 0], [1, 1, 1]], // L
+            [[0, 0, 1], [1, 1, 1]]  // J
+        ];
+        const COLORS = ['#00f0f0', '#f0f000', '#a000f0', '#00f000', '#f00000', '#f0a000', '#0000f0'];
+
+        let currentPiece = {
+            shape: [],
+            color: '',
+            x: 0,
+            y: 0
+        };
+
+        // --- ФУНКЦИИ ОТРИСОВКИ ---
+        function drawBlock(x, y, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            ctx.strokeStyle = '#333';
+            ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x]) {
+                        drawBlock(x, y, COLORS[board[y][x] - 1]);
+                    }
+                }
+            }
+        }
+
+        function drawPiece() {
+            currentPiece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        drawBlock(currentPiece.x + x, currentPiece.y + y, currentPiece.color);
+                    }
+                });
+            });
+        }
+
+        // --- ОСНОВНАЯ ЛОГИКА ИГРЫ ---
+        function newPiece() {
+            const pieceIndex = Math.floor(Math.random() * PIECES.length);
+            currentPiece.shape = PIECES[pieceIndex];
+            currentPiece.color = COLORS[pieceIndex];
+            currentPiece.x = Math.floor(COLS / 2) - Math.floor(currentPiece.shape[0].length / 2);
+            currentPiece.y = 0;
+
+            if (collision()) {
+                gameOver = true;
+                // Если игра закончилась, вызываем функцию отправки счета
+                sendScoreToTelegram(score);
+            }
+        }
+
+        function collision() {
+            for (let y = 0; y < currentPiece.shape.length; y++) {
+                for (let x = 0; x < currentPiece.shape[y].length; x++) {
+                    if (currentPiece.shape[y][x]) {
+                        const newX = currentPiece.x + x;
+                        const newY = currentPiece.y + y;
+                        if (newX < 0 || newX >= COLS || newY >= ROWS) {
+                            return true; // Столкновение со стенами
+                        }
+                        if (newY >= 0 && board[newY][newX]) {
+                            return true; // Столкновение с другими блоками
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function merge() {
+            currentPiece.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        const boardY = currentPiece.y + y;
+                        const boardX = currentPiece.x + x;
+                        if (boardY >= 0) {
+                           board[boardY][boardX] = COLORS.indexOf(currentPiece.color) + 1;
+                        }
+                    }
+                });
+            });
+        }
+
+        function clearLines() {
+            let linesCleared = 0;
+            for (let y = ROWS - 1; y >= 0; y--) {
+                if (board[y].every(cell => cell !== 0)) {
+                    board.splice(y, 1);
+                    board.unshift(Array(COLS).fill(0));
+                    linesCleared++;
+                    y++; // Проверить ту же строку снова
+                }
+            }
+            if (linesCleared > 0) {
+                score += linesCleared * 100;
+                scoreElement.textContent = `Счет: ${score}`;
+            }
+        }
+
+        function moveDown() {
+            currentPiece.y++;
+            if (collision()) {
+                currentPiece.y--;
+                merge();
+                clearLines();
+                newPiece();
+            }
+        }
+
+        function move(dir) {
+            currentPiece.x += dir;
+            if (collision()) {
+                currentPiece.x -= dir;
+            }
+        }
+
+        function rotate() {
+            const rotated = currentPiece.shape[0].map((_, i) =>
+                currentPiece.shape.map(row => row[i]).reverse()
+            );
+            const prevShape = currentPiece.shape;
+            currentPiece.shape = rotated;
+            if (collision()) {
+                currentPiece.shape = prevShape;
+            }
+        }
+
+        // --- ВОЛШЕБНАЯ ФУНКЦИЯ ДЛЯ TELEGRAM ---
+        // Она отправляет счет обратно в Telegram, когда игра заканчивается
+        function sendScoreToTelegram(finalScore) {
+            // Проверяем, запущена ли игра внутри Telegram
+            if (window.TelegramGameProxy) {
+                // Если да, то используем специальный метод для отправки счета
+                window.TelegramGameProxy.sendScore(finalScore);
+            } else {
+                // Если вы просто открыли файл в браузере для теста,
+                // то покажет простое окошко со счетом.
+                alert(`Игра окончена! Ваш счет: ${finalScore}`);
+            }
+        }
+
+        // --- УПРАВЛЕНИЕ И ГЛАВНЫЙ ЦИКЛ ---
+        function gameLoop() {
+            if (!gameOver) {
+                moveDown();
+                drawBoard();
+                drawPiece();
+            }
+            setTimeout(gameLoop, 500); // Скорость падения фигур (в миллисекундах)
+        }
+
+        // Управление с клавиатуры (стрелки)
+        document.addEventListener('keydown', (e) => {
+            if (gameOver) return;
+            switch (e.key) {
+                case 'ArrowLeft':  move(-1); break;
+                case 'ArrowRight': move(1);  break;
+                case 'ArrowDown':  moveDown(); break;
+                case 'ArrowUp':    rotate(); break;
+            }
+            // Перерисовываем поле после каждого действия
+            drawBoard();
+            drawPiece();
+        });
+
+        // --- ЗАПУСК ИГРЫ ---
+        newPiece();
+        gameLoop();
+
+    </script>
+</body>
+</html>
