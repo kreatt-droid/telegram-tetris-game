@@ -210,7 +210,12 @@
             setTimeout(gameLoop, 500); // Скорость падения фигур (в миллисекундах)
         }
 
-        // Управление с клавиатуры (стрелки)
+                // --- УПРАВЛЕНИЕ И ГЛАВНЫЙ ЦИКЛ ---
+
+        // Получаем элемент canvas, чтобы отслеживать касания только на нем
+        const gameCanvas = document.getElementById('gameCanvas');
+
+        // --- Управление с клавиатуры (для ПК) ---
         document.addEventListener('keydown', (e) => {
             if (gameOver) return;
             switch (e.key) {
@@ -219,15 +224,74 @@
                 case 'ArrowDown':  moveDown(); break;
                 case 'ArrowUp':    rotate(); break;
             }
-            // Перерисовываем поле после каждого действия
             drawBoard();
             drawPiece();
         });
 
+        // --- Управление для смартфонов (сенсорное) ---
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        // Функция, которая вызывается при первом касании экрана
+        gameCanvas.addEventListener('touchstart', (e) => {
+            // Сохраняем начальные координаты касания
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        // Функция, которая вызывается, когда палец отрывается от экрана
+        gameCanvas.addEventListener('touchend', (e) => {
+            if (gameOver) return;
+
+            // Получаем конечные координаты
+            let touchEndX = e.changedTouches[0].clientX;
+            let touchEndY = e.changedTouches[0].clientY;
+
+            // Считаем разницу между начальными и конечными координатами
+            let diffX = touchStartX - touchEndX;
+            let diffY = touchStartY - touchEndY;
+
+            // Определяем, был ли это тап (короткое нажатие) или свайп
+            // Если разница по осям маленькая (меньше 10px), считаем это тапом
+            if (Math.abs(diffX) < 10 && Math.abs(diffY) < 10) {
+                rotate(); // Тап - поворот
+            } else {
+                // Иначе это был свайп. Определяем его направление.
+                // Сравниваем абсолютные значения, чтобы понять, свайп был по горизонтали или вертикали
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    // Горизонтальный свайп
+                    if (diffX > 0) {
+                        move(-1); // Свайп влево
+                    } else {
+                        move(1);  // Свайп вправо
+                    }
+                } else {
+                    // Вертикальный свайп
+                    if (diffY > 0) {
+                        // Свайп вверх (можно ничего не делать или добавить "сброс" фигуры)
+                    } else {
+                        moveDown(); // Свайп вниз - ускоренное падение
+                    }
+                }
+            }
+            
+            // Перерисовываем поле после любого действия
+            drawBoard();
+            drawPiece();
+        });
+
+        function gameLoop() {
+            if (!gameOver) {
+                moveDown();
+                drawBoard();
+                drawPiece();
+            }
+            setTimeout(gameLoop, 500); // Скорость падения фигур
+        }
+
         // --- ЗАПУСК ИГРЫ ---
         newPiece();
         gameLoop();
-
     </script>
 </body>
 </html>
