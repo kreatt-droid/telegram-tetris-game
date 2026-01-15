@@ -15,6 +15,7 @@
             justify-content: center; /* По центру вертикали */
             height: 100vh; /* На всю высоту экрана */
             margin: 0; /* Убираем отступы */
+            touch-action: none; /* Отключаем стандартные жесты браузера для корректной работы свайпов */
         }
         canvas {
             background-color: #222; /* Фон игрового поля */
@@ -201,16 +202,6 @@
         }
 
         // --- УПРАВЛЕНИЕ И ГЛАВНЫЙ ЦИКЛ ---
-        function gameLoop() {
-            if (!gameOver) {
-                moveDown();
-                drawBoard();
-                drawPiece();
-            }
-            setTimeout(gameLoop, 500); // Скорость падения фигур (в миллисекундах)
-        }
-
-                // --- УПРАВЛЕНИЕ И ГЛАВНЫЙ ЦИКЛ ---
 
         // Получаем элемент canvas, чтобы отслеживать касания только на нем
         const gameCanvas = document.getElementById('gameCanvas');
@@ -292,6 +283,7 @@
         // --- ЗАПУСК ИГРЫ ---
         newPiece();
         gameLoop();
+
     </script>
 </body>
 </html>
